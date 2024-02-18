@@ -5,10 +5,10 @@ description = ""
 authors = ["taimast <charlskenno@gmail.com>"]
 readme = "README.md"
 keywords = ["avito"]
+packages = [
+    { include = "avito"}
+]
 
-
-[tool.setuptools]
-packages = ["avito"]
 
 
 [tool.poetry.dependencies]
