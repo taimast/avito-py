@@ -28,15 +28,20 @@ from .schema.messenger.models import (
     User,
     Chat,
     Chats,
+    WebhookMessage,
+    WebhookPayload,
+    WebhookUpdate,
+    OkResponse,
+    WebhookSubscription,
+    WebhookSubscriptions,
 )
 
 from .schema.messenger.black_list import (
-Reason,
-Context as BlackListContext,
-User as BlackListUser,
-AddBlackListRequest,
+    Reason,
+    Context as BlackListContext,
+    User as BlackListUser,
+    AddBlackListRequest,
 )
-
 
 from .schema.rating.models import (
     Rating,
@@ -80,6 +85,12 @@ __all__ = (
     'User',
     'Chat',
     'Chats',
+    'WebhookMessage',
+    'WebhookPayload',
+    'WebhookUpdate',
+    'OkResponse',
+    'WebhookSubscription',
+    'WebhookSubscriptions',
     'Rating',
     'RatingInfo',
     'Status',
