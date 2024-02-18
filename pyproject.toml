@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "avito-py"
+name = "avito"
 version = "0.1.0"
 description = ""
 authors = ["taimast <charlskenno@gmail.com>"]
