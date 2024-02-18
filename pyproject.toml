@@ -14,7 +14,6 @@ orjson = "^3.9.14"
 
 
 [tool.poetry.group.dev.dependencies]
-requests = "^2.31.0"
 datamodel-code-generator = "^0.25.3"
 
 [build-system]
