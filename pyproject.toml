@@ -1,10 +1,13 @@
 [tool.poetry]
 name = "avito-py"
-keywords = ["avito"]
 version = "0.1.0"
 description = ""
 authors = ["taimast <charlskenno@gmail.com>"]
 readme = "README.md"
+keywords = ["avito"]
+
+
+[tool.setuptools]
 packages = ["avito"]
 
 
