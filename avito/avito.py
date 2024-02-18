@@ -110,7 +110,7 @@ class Avito:
             "Authorization": f"Bearer {self._token}",
         }
 
-    async def init_token(self, client_id: str, client_secret: str) -> Token | None:
+    async def init_token_if_needed(self, client_id: str, client_secret: str) -> Token | None:
         if self.token:
             return None
         get_token = GetToken(
