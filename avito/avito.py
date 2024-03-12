@@ -30,12 +30,12 @@ class AvitoExpiredTokenResponse(AvitoObject):
     result: AvitoExpiredTokenError
 
 
-
 class AvitoResponse(AvitoObject, Generic[AvitoType]):
     result: AvitoType
 
 
 class Avito:
+    info_cache = {}
 
     def __init__(
             self,
@@ -155,8 +155,12 @@ class Avito:
     async def get_self_info(self) -> UserInfoSelf:
         if self._me:
             return self._me
-        call = GetUserInfoSelf()
-        self._me = await self(call)
+        if info := self.info_cache.get(self._client_id):
+            self._me = info
+        else:
+            call = GetUserInfoSelf()
+            self._me = await self(call)
+            self.info_cache[self._client_id] = self._me
         return self._me
 
     async def get_self_rating(self) -> RatingInfo:
