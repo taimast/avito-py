@@ -9,8 +9,7 @@ TOKEN = os.getenv("TOKEN", None)
 
 
 async def main():
-    async with Avito(TOKEN) as avito:
-        token = await avito.init_token_if_needed(CLIENT_ID, CLIENT_SECRET)
+    async with Avito(TOKEN, CLIENT_ID, CLIENT_SECRET) as avito:
         # save token to db
         me = await avito.get_self_info()
         print(me)

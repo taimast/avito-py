@@ -7,7 +7,7 @@ from datetime import datetime
 from pydantic import model_validator
 
 if typing.TYPE_CHECKING:
-    from avito.auth.methods import RefreshOAuthToken, GetToken
+    from ...methods import RefreshOAuthToken, GetToken
 
 from avito.base.models import AvitoObject
 
@@ -34,7 +34,7 @@ class OAuthToken(BaseToken):
     scope: str
 
     def refresh(self, client_id: str, client_secret: str) -> RefreshOAuthToken:
-        from avito.auth.methods import RefreshOAuthToken
+        from ...methods import RefreshOAuthToken
         return RefreshOAuthToken(
             client_id=client_id,
             client_secret=client_secret,
@@ -47,7 +47,7 @@ class OAuthToken(BaseToken):
 class Token(BaseToken):
 
     def refresh(self, client_id: str, client_secret: str) -> GetToken:
-        from avito.auth.methods import GetToken
+        from ...methods import GetToken
         return GetToken(
             client_id=client_id,
             client_secret=client_secret,

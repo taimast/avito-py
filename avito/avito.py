@@ -13,13 +13,22 @@ from .models import Token, UserInfoSelf, Balance, RatingInfo
 T = TypeVar("T")
 
 
-class AvitoError(AvitoObject):
-    code: int
-    message: str
-
-
 class AvitoErrorResponse(AvitoObject):
+    class AvitoError(AvitoObject):
+        code: int
+        message: str
+
     error: AvitoError
+
+
+class AvitoExpiredTokenResponse(AvitoObject):
+    class AvitoExpiredTokenError(AvitoObject):
+        """# {'result': {'message': 'access token expired', 'status': False}}"""
+        message: str
+        status: bool
+
+    result: AvitoExpiredTokenError
+
 
 
 class AvitoResponse(AvitoObject, Generic[AvitoType]):
@@ -31,10 +40,14 @@ class Avito:
     def __init__(
             self,
             token: str | None = None,
+            client_id: str | None = None,
+            client_secret: str | None = None,
             session: aiohttp.ClientSession | None = None,
             base_url: str = "https://api.avito.ru",
     ):
         self._token = token
+        self._client_id = client_id
+        self._client_secret = client_secret
         if session is None:
             session = aiohttp.ClientSession()
         self.session = session
@@ -55,14 +68,12 @@ class Avito:
     def make_url(self, method: str) -> str:
         return f"{self.base_url}/{method}"
 
-    async def __call__(
-            self,
-            method: AvitoMethod[T]
-    ) -> T:
+    async def _actual_call(self, method: AvitoMethod[T]) -> T:
         url = self.make_url(method.__api_method__)
         json = method.model_dump(mode="json")
         content_type = {method.__content_type__: json}
-        logger.debug(f"Request: {url} {pformat(json)} | {method.__request_method__} | {method.__returning__} | {content_type=}")
+        logger.debug(
+            f"Request: {url} {pformat(json)} | {method.__request_method__} | {method.__returning__} | {content_type=}")
         async with self.session.request(
                 method.__request_method__,
                 url,
@@ -70,11 +81,7 @@ class Avito:
                 **content_type,
         ) as res:
             try:
-                # text = await res.json(loads=orjson.loads)
                 body = await res.read()
-                # if not body and res.status == 200:
-                #     data = {}
-                # else:
                 data = orjson.loads(body)
                 logger.debug(f"Response: {res.status} {pformat(data)}")
             except orjson.JSONDecodeError as e:
@@ -86,18 +93,33 @@ class Avito:
                 raise ValueError(f"{e} {text=}")
 
             if res.status != 200:
-                response = AvitoErrorResponse.model_validate(data)
-                raise ValueError(f"{response.error.code} {response.error.message}")
+                if "error" in data:
+                    response = AvitoErrorResponse.model_validate(data)
+                    raise ValueError(f"{response.error.code} {response.error.message}")
 
-            if "error" in data:
-                response = AvitoErrorResponse.model_validate(data)
-                raise ValueError(f"{response.error.code} {response.error.message}")
+                response = AvitoExpiredTokenResponse.model_validate(data)
+                raise ValueError(f"{response.result.message}")
 
-            # pprint(data)
             # response_type = AvitoResponse[method.__returning__]
             # response = response_type(result=data)
             # return response.result
             return method.__returning__.model_validate(data, context={"avito": self})
+
+    async def __call__(
+            self,
+            method: AvitoMethod[T]
+    ) -> T:
+        if not self._token:
+            logger.info("Token is not set, trying to init token")
+            await self.init_token_if_needed()
+        try:
+            return await self._actual_call(method)
+        except ValueError as e:
+            logger.warning(f"Error: {e}")
+            if "access token expired" in str(e):
+                await self.refresh_token()
+                return await self._actual_call(method)
+            raise e
 
     @property
     def token(self):
@@ -110,14 +132,23 @@ class Avito:
             "Authorization": f"Bearer {self._token}",
         }
 
-    async def init_token_if_needed(self, client_id: str, client_secret: str) -> Token | None:
+    async def refresh_token(self) -> Token:
+        get_token = GetToken(
+            client_id=self._client_id,
+            client_secret=self._client_secret,
+        ).as_(self)
+        token = await get_token
+        self.token = token.access_token
+        return token
+
+    async def init_token_if_needed(self) -> Token | None:
         if self.token:
             return None
         get_token = GetToken(
-            client_id=client_id,
-            client_secret=client_secret,
+            client_id=self._client_id,
+            client_secret=self._client_secret,
         ).as_(self)
-        token = await get_token
+        token = await self._actual_call(get_token)
         self.token = token.access_token
         return token
 
