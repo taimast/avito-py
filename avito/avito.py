@@ -178,7 +178,7 @@ class Avito:
         call = GetUserBalance(user_id=user_id)
         return await self(call)
 
-    async def unsubscribe_all(self)-> WebhookSubscriptions:
+    async def unsubscribe_all(self) -> WebhookSubscriptions:
         subscriptions = await self.get_subscriptions()
         for subscription in subscriptions.subscriptions:
             await subscription.unsubscribe()
