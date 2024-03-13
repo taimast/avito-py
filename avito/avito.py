@@ -7,8 +7,10 @@ from loguru import logger
 
 from .base.methods import AvitoMethod, AvitoType
 from .base.models import AvitoObject
-from .methods import GetToken, GetRatingsInfo, GetUserInfoSelf, GetUserBalance
+from .methods import GetToken, GetRatingsInfo, GetUserInfoSelf, GetUserBalance, GetSubscriptions
 from .models import Token, UserInfoSelf, Balance, RatingInfo
+from .schema.messenger.methods import PostWebhook
+from .schema.messenger.models import WebhookSubscriptions
 
 T = TypeVar("T")
 
@@ -174,4 +176,20 @@ class Avito:
 
     async def get_balance(self, user_id: int) -> Balance:
         call = GetUserBalance(user_id=user_id)
+        return await self(call)
+
+    async def unsubscribe_all(self)-> WebhookSubscriptions:
+        subscriptions = await self.get_subscriptions()
+        for subscription in subscriptions.subscriptions:
+            await subscription.unsubscribe()
+        return subscriptions
+
+    async def get_subscriptions(self) -> WebhookSubscriptions:
+        call = GetSubscriptions()
+        return await self(call)
+
+    async def set_webhook(self, url: str, unsubscribe_all: bool = False):
+        if unsubscribe_all:
+            await self.unsubscribe_all()
+        call = PostWebhook(url=url)
         return await self(call)
