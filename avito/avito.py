@@ -154,8 +154,10 @@ class Avito:
 
     async def get_self_info(self) -> UserInfoSelf:
         if self._me:
+            logger.debug(f"Using cached self info _me: {self._me}")
             return self._me
         if info := self.info_cache.get(self._client_id):
+            logger.debug(f"Using cached self info info_cache: {info}")
             self._me = info
         else:
             call = GetUserInfoSelf()
