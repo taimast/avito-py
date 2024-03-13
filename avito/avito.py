@@ -73,7 +73,7 @@ class Avito:
         json = method.model_dump(mode="json")
         content_type = {method.__content_type__: json}
         logger.debug(
-            f"Request: {url} {pformat(json)} | {method.__request_method__} | {method.__returning__} | {content_type=}")
+            f"Request [{self._client_id}]: {url} {pformat(json)} | {method.__request_method__} | {method.__returning__} | {content_type=}")
         async with self.session.request(
                 method.__request_method__,
                 url,
@@ -83,7 +83,7 @@ class Avito:
             try:
                 body = await res.read()
                 data = orjson.loads(body)
-                logger.debug(f"Response: {res.status} {pformat(data)}")
+                logger.debug(f"Response [{self._client_id}] : {res.status} {pformat(data)}")
             except orjson.JSONDecodeError as e:
                 text = await res.text()
                 raise ValueError(f"{e} {text=} {res.status}")
