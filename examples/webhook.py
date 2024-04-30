@@ -36,6 +36,7 @@ async def webhook(request: web.Request):
         return web.Response(text="OK")
 
     logger.info(f"Message from user: {message_text}")
+    # mark message as read
     await message.read_message_chat()
     await message.answer("Hello, I'm a bot")
 
