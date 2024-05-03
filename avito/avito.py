@@ -121,6 +121,9 @@ class Avito:
             if "access token expired" in str(e):
                 await self.refresh_token()
                 return await self._actual_call(method)
+            if "invalid access token" in str(e):
+                await self.refresh_token()
+                return await self._actual_call(method)
             raise e
 
     @property
