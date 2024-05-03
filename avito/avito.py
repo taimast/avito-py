@@ -60,6 +60,7 @@ class Avito:
         }
 
         self._me: UserInfoSelf | None = None
+        self.is_refreshed = False
 
     async def __aenter__(self):
         return self
@@ -120,9 +121,11 @@ class Avito:
             logger.warning(f"Error: {e}")
             if "access token expired" in str(e):
                 await self.refresh_token()
+                self.is_refreshed = True
                 return await self._actual_call(method)
             if "invalid access token" in str(e):
                 await self.refresh_token()
+                self.is_refreshed = True
                 return await self._actual_call(method)
             raise e
 
