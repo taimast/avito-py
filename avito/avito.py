@@ -1,5 +1,5 @@
 from pprint import pformat
-from typing import TypeVar, Generic
+from typing import Generic, TypeVar
 
 import aiohttp
 import orjson
@@ -7,9 +7,15 @@ from loguru import logger
 
 from .base.methods import AvitoMethod, AvitoType
 from .base.models import AvitoObject
-from .methods import GetToken, GetRatingsInfo, GetUserInfoSelf, GetUserBalance, GetSubscriptions
-from .models import Token, UserInfoSelf, Balance, RatingInfo
-from .schema.messenger.methods import PostWebhook
+from .methods import (
+    GetRatingsInfo,
+    GetSubscriptions,
+    GetToken,
+    GetUserBalance,
+    GetUserInfoSelf,
+)
+from .models import Balance, RatingInfo, Token, UserInfoSelf
+from .schema.messenger.methods import PostWebhook, SendImage, UploadImage
 from .schema.messenger.models import WebhookSubscriptions
 
 T = TypeVar("T")
@@ -17,7 +23,7 @@ T = TypeVar("T")
 
 class AvitoErrorResponse(AvitoObject):
     class AvitoError(AvitoObject):
-        code: int
+        code: int | None = None
         message: str
 
     error: AvitoError
@@ -26,6 +32,7 @@ class AvitoErrorResponse(AvitoObject):
 class AvitoExpiredTokenResponse(AvitoObject):
     class AvitoExpiredTokenError(AvitoObject):
         """# {'result': {'message': 'access token expired', 'status': False}}"""
+
         message: str
         status: bool
 
@@ -40,12 +47,12 @@ class Avito:
     info_cache = {}
 
     def __init__(
-            self,
-            token: str | None = None,
-            client_id: str | None = None,
-            client_secret: str | None = None,
-            session: aiohttp.ClientSession | None = None,
-            base_url: str = "https://api.avito.ru",
+        self,
+        token: str | None = None,
+        client_id: str | None = None,
+        client_secret: str | None = None,
+        session: aiohttp.ClientSession | None = None,
+        base_url: str = "https://api.avito.ru",
     ):
         self._token = token
         self._client_id = client_id
@@ -71,22 +78,14 @@ class Avito:
     def make_url(self, method: str) -> str:
         return f"{self.base_url}/{method}"
 
-    async def _actual_call(self, method: AvitoMethod[T]) -> T:
-        url = self.make_url(method.__api_method__)
-        json = method.model_dump(mode="json")
-        content_type = {method.__content_type__: json}
-        logger.debug(
-            f"Request [{self._client_id}]: {url} {pformat(json)} | {method.__request_method__} | {method.__returning__} | {content_type=}")
-        async with self.session.request(
-                method.__request_method__,
-                url,
-                headers=self.headers,
-                **content_type,
-        ) as res:
+    async def _request(self, *args, **kwargs):
+        async with self.session.request(*args, **kwargs) as res:
             try:
                 body = await res.read()
                 data = orjson.loads(body)
-                logger.debug(f"Response [{self._client_id}] : {res.status} {pformat(data)}")
+                logger.debug(
+                    f"Response [{self._client_id}] : {res.status} {pformat(data)}"
+                )
             except orjson.JSONDecodeError as e:
                 text = await res.text()
                 raise ValueError(f"{e} {text=} {res.status}")
@@ -103,15 +102,45 @@ class Avito:
                 response = AvitoExpiredTokenResponse.model_validate(data)
                 raise ValueError(f"{response.result.message}")
 
-            # response_type = AvitoResponse[method.__returning__]
-            # response = response_type(result=data)
-            # return response.result
-            return method.__returning__.model_validate(data, context={"avito": self})
+        return data
 
-    async def __call__(
-            self,
-            method: AvitoMethod[T]
-    ) -> T:
+    async def _actual_call(self, method: AvitoMethod[T]) -> T:
+        url = self.make_url(method.__api_method__)
+        json = method.model_dump(mode="json")
+        content_type = {method.__content_type__: json}
+        logger.debug(
+            f"Request [{self._client_id}]: {url} {pformat(json)} | {method.__request_method__} | {method.__returning__} | {content_type=}"
+        )
+        if isinstance(method, UploadImage):
+            with aiohttp.MultipartWriter("form-data") as form:
+                form.append(
+                    open(method.file_path, "rb"),
+                    {
+                        "Content-Type": "application/octet-stream",
+                        "Content-Disposition": f'form-data; name="uploadfile[]"; filename="{method.file_path}"',
+                    },
+                )
+                data = await self._request(
+                    method.__request_method__,
+                    url,
+                    headers=self.headers,
+                    data=form,
+                )
+        else:
+            data = await self._request(
+                method.__request_method__,
+                url,
+                headers=self.headers,
+                **content_type,
+            )
+        # response_type = AvitoResponse[method.__returning__]
+        # response = response_type(result=data)
+        # return response.result
+        if method.__returning__ is dict:
+            return data
+        return method.__returning__.model_validate(data, context={"avito": self})
+
+    async def __call__(self, method: AvitoMethod[T]) -> T:
         if not self._token:
             logger.info("Token is not set, trying to init token")
             await self.init_token_if_needed()
@@ -120,7 +149,7 @@ class Avito:
         except ValueError as e:
             logger.warning(f"Error: {e}")
             if "access token expired" in str(e):
-                self.refreshed_token =  await self.refresh_token()
+                self.refreshed_token = await self.refresh_token()
                 return await self._actual_call(method)
             if "invalid access token" in str(e):
                 self.refreshed_token = await self.refresh_token()
@@ -196,4 +225,33 @@ class Avito:
         if unsubscribe_all:
             await self.unsubscribe_all()
         call = PostWebhook(url=url)
+        return await self(call)
+
+    async def upload_image(
+        self,
+        file_path: str,
+    ) -> str:
+        from .schema.messenger.methods import UploadImage
+
+        me = await self.get_self_info()
+        call = UploadImage(user_id=me.id, file_path=file_path)
+        res = await self(call)
+        if isinstance(res, dict):
+            # first key is image_id
+            image_id = list(res.keys())[0]
+            return image_id
+        raise ValueError("Failed to upload image")
+
+    async def send_image(
+        self,
+        chat_id: str,
+        file_path: str,
+    ) -> dict:
+        image_id = await self.upload_image(file_path=file_path)
+        me = await self.get_self_info()
+        call = SendImage(
+            user_id=me.id,
+            chat_id=chat_id,
+            image_id=image_id,
+        )
         return await self(call)

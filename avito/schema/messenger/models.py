@@ -1,5 +1,4 @@
 from __future__ import annotations
-from __future__ import annotations
 
 import typing
 from enum import StrEnum
@@ -8,16 +7,18 @@ from typing import List, Optional
 from pydantic import BaseModel, Field, HttpUrl
 
 from avito.base.models import AvitoObject
+
 from .black_list import Reason
 
 if typing.TYPE_CHECKING:
     from ...methods import (
-        GetMessages,
+        AddToBlacklist,
         ChatRead,
-        SendMessage,
-        PostWebhookUnsubscribe,
         DeleteMessage,
-        AddToBlacklist
+        GetMessages,
+        PostWebhookUnsubscribe,
+        SendImage,
+        SendMessage,
     )
 
 
@@ -188,17 +189,13 @@ class Chat(AvitoObject):
 
     def get_messages(self) -> GetMessages:
         from avito.methods import GetMessages
-        return GetMessages(
-            user_id=self.me_id,
-            chat_id=self.id
-        ).as_(self._avito)
+
+        return GetMessages(user_id=self.me_id, chat_id=self.id).as_(self._avito)
 
     def read(self) -> ChatRead:
         from avito.methods import ChatRead
-        return ChatRead(
-            user_id=self.me_id,
-            chat_id=self.id
-        ).as_(self._avito)
+
+        return ChatRead(user_id=self.me_id, chat_id=self.id).as_(self._avito)
 
 
 class Chats(BaseModel):
@@ -221,10 +218,19 @@ class WebhookMessage(AvitoObject):
     def answer(self, text: str) -> SendMessage:
         from avito.methods import SendMessage
         from avito.models import MessageToSend
+
         return SendMessage(
+            user_id=self.me_id, chat_id=self.chat_id, message=MessageToSend(text=text)
+        ).as_(self._avito)
+
+    async def answer_image(self, file_path: str) -> SendImage:
+        from avito.schema.messenger.methods import SendImage
+
+        image_id = await self._avito.upload_image(file_path)
+        return SendImage(
             user_id=self.me_id,
             chat_id=self.chat_id,
-            message=MessageToSend(text=text)
+            image_id=image_id,
         ).as_(self._avito)
 
     def from_self(self) -> bool:
@@ -232,32 +238,33 @@ class WebhookMessage(AvitoObject):
 
     def read_message_chat(self) -> ChatRead:
         from avito.methods import ChatRead
-        return ChatRead(
-            user_id=self.me_id,
-            chat_id=self.chat_id
-        ).as_(self._avito)
+
+        return ChatRead(user_id=self.me_id, chat_id=self.chat_id).as_(self._avito)
 
     def delete_message(self) -> DeleteMessage:
         from avito.methods import DeleteMessage
+
         return DeleteMessage(
-            user_id=self.me_id,
-            chat_id=self.chat_id,
-            message_id=self.id
+            user_id=self.me_id, chat_id=self.chat_id, message_id=self.id
         ).as_(self._avito)
 
     def add_to_blacklist(self, reason: Reason = Reason.OTHER) -> AddToBlacklist:
         from avito.methods import AddToBlacklist
         from avito.models import AddBlackListRequest, BlackListContext, BlackListUser
+
         return AddToBlacklist(
-            users=[AddBlackListRequest(
-                users=[BlackListUser(
-                    context=BlackListContext(
-                        item_id=self.item_id,
-                        reason_id=reason
-                    ),
-                    user_id=self.user_id
-                )]
-            )]
+            users=[
+                AddBlackListRequest(
+                    users=[
+                        BlackListUser(
+                            context=BlackListContext(
+                                item_id=self.item_id, reason_id=reason
+                            ),
+                            user_id=self.user_id,
+                        )
+                    ]
+                )
+            ]
         ).as_(self._avito)
 
 
@@ -268,21 +275,22 @@ class WebhookPayload(AvitoObject):
 
 class WebhookUpdate(AvitoObject):
     """
-        'id': 'e7fe3e32-7dcb-435b-92f9-db1f1f3c9a6f',
-        'payload': {'type': 'message',
-                    'value': {'author_id': 237569507,
-                              'chat_id': 'u2i-eaK3A2JW1iRBkCS~9UkP6Q',
-                              'chat_type': 'u2i',
-                              'content': {'text': 'Привет'},
-                              'created': 1707486141,
-                              'id': '707ed8b26213d69d8ea07fd0cc641b2c',
-                              'item_id': 3749321767,
-                              'type': 'text',
-                              'user_id': 370440487}},
-        'timestamp': 1707486141,
-        'version': 'v3.0.0'}
+    'id': 'e7fe3e32-7dcb-435b-92f9-db1f1f3c9a6f',
+    'payload': {'type': 'message',
+                'value': {'author_id': 237569507,
+                          'chat_id': 'u2i-eaK3A2JW1iRBkCS~9UkP6Q',
+                          'chat_type': 'u2i',
+                          'content': {'text': 'Привет'},
+                          'created': 1707486141,
+                          'id': '707ed8b26213d69d8ea07fd0cc641b2c',
+                          'item_id': 3749321767,
+                          'type': 'text',
+                          'user_id': 370440487}},
+    'timestamp': 1707486141,
+    'version': 'v3.0.0'}
 
     """
+
     id: str
     payload: WebhookPayload
     timestamp: int
@@ -304,9 +312,8 @@ class WebhookSubscription(AvitoObject):
 
     def unsubscribe(self) -> PostWebhookUnsubscribe:
         from avito.methods import PostWebhookUnsubscribe
-        return PostWebhookUnsubscribe(
-            url=self.url
-        ).as_(self._avito)
+
+        return PostWebhookUnsubscribe(url=self.url).as_(self._avito)
 
 
 class WebhookSubscriptions(AvitoObject):
