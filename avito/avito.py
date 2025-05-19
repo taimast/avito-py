@@ -151,6 +151,9 @@ class Avito:
             if "access token expired" in str(e):
                 self.refreshed_token = await self.refresh_token()
                 return await self._actual_call(method)
+            if str(e).startswith("unauthorized_"):
+                self.refreshed_token = await self.refresh_token()
+                return await self._actual_call(method)
             if "invalid access token" in str(e):
                 self.refreshed_token = await self.refresh_token()
                 return await self._actual_call(method)
